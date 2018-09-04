@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003"
+         ToolsVersion="15.0" DefaultTargets="Pack">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <PackageDir>$(MSBuildThisFileDirectory)dist</PackageDir>
+
+    <BuildNumber Condition="'$(BuildNumber)' == ''">$(BUILD_BUILDNUMBER)</BuildNumber>
+    <BuildNumber Condition="'$(BuildNumber)' == '' AND '$(OfficialBuild)' != 'true'">$([System.DateTime]::UtcNow.ToString(`yyyyMMdd.HHmm`))</BuildNumber>
+
+    <BuildProperties>Configuration=$(Configuration);Platform=AnyCPU;BuildNumber=$(BuildNumber)</BuildProperties>
+    <PackProperties>$(BuildProperties);IncludeSource=true</PackProperties>
+
+    <ToolsDir>$(MSBuildThisFileDirectory)Tools\</ToolsDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectItem Include="Source\GuidFromStringAnalyzer\GuidFromStringAnalyzer.csproj">
+      <Pack>true</Pack>
+    </ProjectItem>
+    <ProjectItem Include="Source\GuidFromStringAnalyzer.Tests\GuidFromStringAnalyzer.Tests.csproj"/>
+    <ProjectItem Include="Source\GuidFromStringAnalyzer.Vsix\GuidFromStringAnalyzer.Vsix.csproj"/>
+  </ItemGroup>
+
+  <Target Name="Clean">
+    <MSBuild Projects="@(ProjectItem)"
+             Properties="$(BuildProperties)"
+             Targets="Clean"
+             BuildInParallel="true"
+             StopOnFirstFailure="true"/>
+    <RemoveDir Directories="build\any"/>
+  </Target>
+
+  <Target Name="Restore">
+    <MSBuild Projects="@(ProjectItem)"
+             Properties="$(BuildProperties)"
+             Targets="Restore"
+             BuildInParallel="true"
+             StopOnFirstFailure="true"/>
+  </Target>
+
+  <Target Name="Build" DependsOnTargets="Restore">
+    <MSBuild Projects="@(ProjectItem)"
+             Properties="$(BuildProperties)"
+             BuildInParallel="true"
+             StopOnFirstFailure="true"
+             Targets="Rebuild"/>
+  </Target>
+
+  <Target Name="Test" DependsOnTargets="Build">
+    <ItemGroup>
+      <TestAssemblies Include="build\any\bin\netcoreapp2.0\GuidFromStringAnalyzer.Tests.dll"/>
+    </ItemGroup>
+    <Exec Command="dotnet vstest @(TestAssemblies, ' ')"/>
+  </Target>
+
+  <Target Name="Pack" DependsOnTargets="Build;Test">
+    <ItemGroup>
+      <_PackItems Include="@(ProjectItem)" Condition="'%(ProjectItem.Pack)' == 'true'"/>
+    </ItemGroup>
+
+    <MSBuild Projects="@(_PackItems)"
+             Properties="$(PackProperties)"
+             Targets="Pack"
+             BuildInParallel="true"
+             StopOnFirstFailure="true">
+      <Output TaskParameter="TargetOutputs"
+              ItemName="Packages"/>
+    </MSBuild>
+
+    <Copy SourceFiles="@(Packages)" DestinationFolder="$(PackageDir)"/>
+  </Target>
+</Project>
